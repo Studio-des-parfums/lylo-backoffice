@@ -49,6 +49,13 @@ async function apiFetch(path: string, init?: RequestInit) {
     throw new Error(`HTTP ${res.status} ${res.statusText}${details ? ` — ${details}` : ""}`);
   }
 
+  // Certains endpoints (comme DELETE) peuvent renvoyer 204 ou un corps vide,
+  // auquel cas un appel à res.json() provoquerait une erreur "Unexpected end of JSON input".
+  if (res.status === 204) return null;
+
+  const contentLength = res.headers.get("content-length");
+  if (contentLength === "0") return null;
+
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) return null;
   return (await res.json()) as unknown;
