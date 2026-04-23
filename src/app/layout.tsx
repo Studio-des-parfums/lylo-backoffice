@@ -19,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className="h-full bg-light">
+    <html lang="fr" className="h-full bg-light" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
@@ -28,7 +28,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className={`${inter.variable} h-full font-sans text-dark antialiased`}>
+      <body className={`${inter.variable} h-full font-sans text-dark antialiased`} suppressHydrationWarning>
         <AppShell>{children}</AppShell>
       </body>
     </html>

@@ -35,6 +35,7 @@ async function apiFetch(path: string, init?: RequestInit) {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true",
       ...(init?.headers ?? {}),
     },
   });
@@ -56,8 +57,6 @@ async function apiFetch(path: string, init?: RequestInit) {
   const contentLength = res.headers.get("content-length");
   if (contentLength === "0") return null;
 
-  const contentType = res.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) return null;
   return (await res.json()) as unknown;
 }
 

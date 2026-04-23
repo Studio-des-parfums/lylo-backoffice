@@ -1,5 +1,7 @@
+"use client";
+
 import { Sidebar } from "@/components/shell/Sidebar";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 function formatDateFr(date: Date) {
   return date.toLocaleDateString("fr-FR", {
@@ -11,7 +13,11 @@ function formatDateFr(date: Date) {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const todayLabel = formatDateFr(new Date());
+  const [todayLabel, setTodayLabel] = useState<string>("");
+
+  useEffect(() => {
+    setTodayLabel(formatDateFr(new Date()));
+  }, []);
 
   return (
     <div className="flex h-full overflow-hidden">

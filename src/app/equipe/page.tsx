@@ -28,6 +28,7 @@ async function apiFetch(path: string, init?: RequestInit) {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true",
       ...(init?.headers ?? {}),
     },
   });
@@ -48,8 +49,6 @@ async function apiFetch(path: string, init?: RequestInit) {
   const contentLength = res.headers.get("content-length");
   if (contentLength === "0") return null;
 
-  const contentType = res.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) return null;
   return (await res.json()) as unknown;
 }
 
@@ -96,8 +95,11 @@ export default function EquipePage() {
     setIsBusy(true);
     try {
       const data = await apiFetch("/teams/");
+      console.log("API response:", data);
+      console.log("Members parsed:", normalizeMembers(data));
       setMembers(normalizeMembers(data));
     } catch (e) {
+      console.error("API error:", e);
       setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
       setIsBusy(false);
@@ -163,10 +165,10 @@ export default function EquipePage() {
   function openDetail(member: TeamMember) {
     setSelectedId(String(member.id));
     setEditForm({
-      first_name: member.first_name,
-      last_name: member.last_name,
-      email: member.email,
-      phone: member.phone,
+      first_name: member.first_name ?? "",
+      last_name: member.last_name ?? "",
+      email: member.email ?? "",
+      phone: member.phone ?? "",
     });
     setIsDetailOpen(true);
   }
