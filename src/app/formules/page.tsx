@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { Label } from "@/components/ui/Label";
 
 type Note = {
   name: string;
@@ -40,23 +41,36 @@ function getBackendBaseUrl() {
   return base ? base.replace(/\/+$/, "") : "";
 }
 
-async function apiFetch(path: string, init?: RequestInit) {
+async function apiFetch(path: string, init?: RequestInit, timeoutMs = 20000) {
   const base = getBackendBaseUrl();
   const url = `${base}${path.startsWith("/") ? "" : "/"}${path}`;
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      "ngrok-skip-browser-warning": "true",
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!res.ok) {
-    let details = "";
-    try { details = await res.text(); } catch { /* ignore */ }
-    throw new Error(`HTTP ${res.status} ${res.statusText}${details ? ` — ${details}` : ""}`);
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+        ...(init?.headers ?? {}),
+      },
+    });
+    if (!res.ok) {
+      let details = "";
+      try { details = await res.text(); } catch { /* ignore */ }
+      throw new Error(`HTTP ${res.status} ${res.statusText}${details ? ` — ${details}` : ""}`);
+    }
+    return (await res.json()) as unknown;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("La requete a expire. Le serveur mail ne repond pas a temps.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
-  return (await res.json()) as unknown;
 }
 
 const FORMULA_TYPE_LABELS: Record<string, string> = {
@@ -116,6 +130,10 @@ export default function FormulesPage() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Formula | null>(null);
   const [selectedSize, setSelectedSize] = useState("30ml");
+  const [emailInput, setEmailInput] = useState("");
+  const [emailStatus, setEmailStatus] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchFormulas = useCallback(async (q: string) => {
@@ -152,10 +170,65 @@ export default function FormulesPage() {
     setSelectedSize(sizes.includes("30ml") ? "30ml" : sizes[0] ?? "30ml");
   }
 
+  useEffect(() => {
+    setEmailInput(selected?.customer_email ?? "");
+    setEmailStatus(null);
+    setEmailError(null);
+    setIsSendingEmail(false);
+  }, [selected]);
+
+  async function sendSelectedFormulaEmail() {
+    if (!selected) return;
+
+    const trimmedEmail = emailInput.trim();
+    const payload = trimmedEmail ? { email: trimmedEmail } : {};
+
+    setEmailStatus(null);
+    setEmailError(null);
+    setIsSendingEmail(true);
+    try {
+      const data = await apiFetch(
+        `/api/formulas/${encodeURIComponent(selected.reference)}/send-mail`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        },
+        20000,
+      );
+      const response = data as { email?: string };
+      const effectiveEmail = response.email ?? trimmedEmail ?? selected.customer_email ?? "";
+
+      setSelected((current) =>
+        current
+          ? {
+              ...current,
+              customer_email: effectiveEmail || current.customer_email,
+            }
+          : current,
+      );
+      setFormulas((current) =>
+        current.map((formula) =>
+          formula.reference === selected.reference
+            ? { ...formula, customer_email: effectiveEmail || formula.customer_email }
+            : formula,
+        ),
+      );
+      setEmailInput(effectiveEmail);
+      setEmailStatus(`Email envoye a ${effectiveEmail}.`);
+    } catch (e) {
+      setEmailError(e instanceof Error ? e.message : "Erreur inconnue");
+    } finally {
+      setIsSendingEmail(false);
+    }
+  }
+
   const sizeDetail = useMemo(() => {
     if (!selected?.sizes) return null;
     return selected.sizes[selectedSize] ?? null;
   }, [selected, selectedSize]);
+
+  const resolvedEmail = emailInput.trim() || selected?.customer_email?.trim() || "";
+  const needsEmail = !resolvedEmail;
 
   return (
     <div className="space-y-6">
@@ -243,9 +316,19 @@ export default function FormulesPage() {
         onClose={() => setSelected(null)}
         maxWidthClassName="max-w-2xl"
         footer={
-          <Button type="button" onClick={() => setSelected(null)}>
-            Fermer
-          </Button>
+          <>
+            <Button type="button" onClick={() => setSelected(null)}>
+              Fermer
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => void sendSelectedFormulaEmail()}
+              disabled={isSendingEmail || (needsEmail && !emailInput.trim())}
+            >
+              {isSendingEmail ? "Envoi..." : "Envoyer par email"}
+            </Button>
+          </>
         }
       >
         {selected && (
@@ -275,6 +358,45 @@ export default function FormulesPage() {
                 <p className="text-xs text-dark/50">Date</p>
                 <p className="font-medium text-dark">{formatDate(selected.created_at)}</p>
               </div>
+            </div>
+
+            <div className="rounded-custom border border-[#e5e5e3] bg-light/30 p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                <div className="flex-1">
+                  <Label htmlFor="formula-email">Email d&apos;envoi</Label>
+                  <Input
+                    id="formula-email"
+                    type="email"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    placeholder="client@example.com"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={() => void sendSelectedFormulaEmail()}
+                  disabled={isSendingEmail || (needsEmail && !emailInput.trim())}
+                  className="md:min-w-44"
+                >
+                  {isSendingEmail ? "Envoi..." : "Envoyer par email"}
+                </Button>
+              </div>
+              <p className="mt-2 text-xs text-dark/55">
+                {selected.customer_email
+                  ? "L'adresse enregistree est preremplie. Tu peux la modifier avant l'envoi."
+                  : "Aucune adresse enregistree pour cette formule. Renseigne un email pour envoyer la formule."}
+              </p>
+              {emailStatus && (
+                <div className="mt-3 rounded-custom border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                  {emailStatus}
+                </div>
+              )}
+              {emailError && (
+                <div className="mt-3 rounded-custom border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  {emailError}
+                </div>
+              )}
             </div>
 
             {selected.sizes && Object.keys(selected.sizes).length > 0 && (
