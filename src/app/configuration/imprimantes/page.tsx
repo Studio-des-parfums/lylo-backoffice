@@ -712,19 +712,17 @@ export default function ImprimantesPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="conf_location">Location</Label>
-                <select
+                <input
                   id="conf_location"
+                  list="location-suggestions"
                   value={createForm.location}
                   onChange={(e) => setCreateForm((s) => ({ ...s, location: e.target.value }))}
+                  placeholder="Ex : caisse, cuisine, bar…"
                   className="w-full rounded-custom border border-[#e5e5e3] bg-white px-3 py-2 text-sm text-dark focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                >
-                  <option value="">Choisir…</option>
-                  {LOCATION_OPTIONS.map((l) => (
-                    <option key={l} value={l}>
-                      {l.charAt(0).toUpperCase() + l.slice(1)}
-                    </option>
-                  ))}
-                </select>
+                />
+                <datalist id="location-suggestions">
+                  {LOCATION_OPTIONS.map((l) => <option key={l} value={l} />)}
+                </datalist>
               </div>
             </div>
           </div>
@@ -815,19 +813,17 @@ function PrinterForm({
       </div>
       <div className="space-y-2">
         <Label htmlFor="pf_location">Location</Label>
-        <select
+        <input
           id="pf_location"
+          list="location-suggestions"
           value={form.location}
           onChange={(e) => onChange((s) => ({ ...s, location: e.target.value }))}
+          placeholder="Ex : caisse, cuisine, bar…"
           className="w-full rounded-custom border border-[#e5e5e3] bg-white px-3 py-2 text-sm text-dark focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-        >
-          <option value="">Choisir…</option>
-          {LOCATION_OPTIONS.map((l) => (
-            <option key={l} value={l}>
-              {l.charAt(0).toUpperCase() + l.slice(1)}
-            </option>
-          ))}
-        </select>
+        />
+        <datalist id="location-suggestions">
+          {LOCATION_OPTIONS.map((l) => <option key={l} value={l} />)}
+        </datalist>
       </div>
       <div className="space-y-2">
         <Label htmlFor="pf_port">Port</Label>
